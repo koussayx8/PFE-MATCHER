@@ -1,0 +1,112 @@
+import json
+import hashlib
+import uuid
+from difflib import SequenceMatcher
+from typing import List, Dict, Any
+from pathlib import Path
+
+from src.ai_engine.gemini_client import GeminiClient
+from config.prompts import PROJECT_EXTRACTION_PROMPT
+from config.settings import CACHE_DIR
+from src.utils.logging_config import setup_logging
+
+logger = setup_logging(__name__)
+
+def extract_projects_from_text(text: str) -> List[Dict[str, Any]]:
+    """
+    Extract projects from text using Gemini.
+    
+    Args:
+        text (str): The raw text from the PFE book.
+        
+    Returns:
+        List[Dict[str, Any]]: List of extracted projects.
+    """
+    if not text:
+        return []
+
+    # Check cache (hash of the first 1000 chars + length to avoid huge hash calc on full text if unnecessary)
+    text_hash = hashlib.md5((text[:1000] + str(len(text))).encode('utf-8')).hexdigest()
+    cache_file = CACHE_DIR / f"projects_{text_hash}.json"
+    
+    if cache_file.exists():
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                logger.info(f"Loaded projects from cache: {text_hash}")
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load cache: {e}")
+
+    client = GeminiClient()
+    
+    # Chunking logic to avoid timeouts
+    CHUNK_SIZE = 15000
+    chunks = [text[i:i+CHUNK_SIZE] for i in range(0, len(text), CHUNK_SIZE)]
+    
+    logger.info(f"Split text into {len(chunks)} chunks for extraction.")
+    
+    all_projects = []
+    
+    # Process chunks
+    for i, chunk in enumerate(chunks):
+        logger.info(f"Processing chunk {i+1}/{len(chunks)}...")
+        prompt = PROJECT_EXTRACTION_PROMPT.format(text=chunk)
+        
+        result = client.generate_structured_response(prompt)
+        
+        if result and "projects" in result:
+            chunk_projects = result["projects"]
+            logger.info(f"Found {len(chunk_projects)} projects in chunk {i+1}")
+            all_projects.extend(chunk_projects)
+        else:
+            logger.warning(f"Failed to extract projects from chunk {i+1}")
+            
+    projects = all_projects
+        
+    # Save to cache
+    if projects:
+        try:
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(projects, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.warning(f"Failed to save cache: {e}")
+
+    return projects
+
+def normalize_projects(projects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Normalize, deduplicate, and validate projects.
+    
+    Args:
+        projects (List[Dict[str, Any]]): Raw projects list.
+        
+    Returns:
+        List[Dict[str, Any]]: Cleaned list.
+    """
+    cleaned_projects = []
+    seen_titles = []
+    
+    for p in projects:
+        # Basic validation
+        if not p.get("title") or not p.get("description"):
+            continue
+            
+        # Clean fields
+        p["title"] = p["title"].strip()
+        p["description"] = p["description"].strip()
+        p["id"] = str(uuid.uuid4())
+        
+        # Deduplication
+        is_duplicate = False
+        for seen_title in seen_titles:
+            similarity = SequenceMatcher(None, p["title"].lower(), seen_title.lower()).ratio()
+            if similarity > 0.85:
+                is_duplicate = True
+                break
+        
+        if not is_duplicate:
+            cleaned_projects.append(p)
+            seen_titles.append(p["title"])
+            
+    logger.info(f"Normalized {len(projects)} projects to {len(cleaned_projects)} unique projects.")
+    return cleaned_projects

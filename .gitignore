@@ -1,0 +1,12 @@
+.env
+config/credentials.json
+config/token.json
+data/*
+!data/.gitkeep
+database/*.db
+logs/
+__pycache__/
+*.pyc
+venv/
+.pytest_cache/
+.DS_Store
