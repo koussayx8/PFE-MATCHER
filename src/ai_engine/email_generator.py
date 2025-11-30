@@ -72,7 +72,7 @@ def preview_email_html(email_data: Dict[str, str]) -> str:
     body = email_data.get("body", "").replace("\n", "<br>")
     
     return f"""
-    <div style="border:1px solid #ddd; padding:20px; border-radius:10px; background-color:#f9f9f9;">
+    <div style="border:1px solid #ddd; padding:20px; border-radius:10px; background-color:#f9f9f9; color:#000000;">
         <p><strong>Subject:</strong> {subject}</p>
         <hr>
         <div style="font-family:sans-serif;">{body}</div>

@@ -9,6 +9,8 @@ logger = logging.getLogger(__name__)
 def get_connection():
     return sqlite3.connect(DATABASE_PATH)
 
+import json
+
 def init_database():
     """Initialize the SQLite database with required tables."""
     try:
@@ -32,11 +34,90 @@ def init_database():
             )
         """)
         
+        # Matches table (New)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS matches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id TEXT,
+                project_title TEXT,
+                company TEXT,
+                score INTEGER,
+                recommendation TEXT,
+                matching_points TEXT, -- JSON
+                gaps TEXT, -- JSON
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
         conn.commit()
         conn.close()
         logger.info("Database initialized successfully.")
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
+
+def save_match_batch(matches: List[Dict[str, Any]]):
+    """Save a batch of matches to the database."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        timestamp = datetime.now()
+        
+        for match in matches:
+            cursor.execute("""
+                INSERT INTO matches (
+                    project_id, project_title, company, score, 
+                    recommendation, matching_points, gaps, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                match.get("project_id"),
+                match.get("project_title"),
+                match.get("company"),
+                match.get("overall_score", 0),
+                match.get("recommendation"),
+                json.dumps(match.get("matching_points", [])),
+                json.dumps(match.get("gaps", [])),
+                timestamp
+            ))
+            
+        conn.commit()
+        conn.close()
+        logger.info(f"Saved {len(matches)} matches to database.")
+    except Exception as e:
+        logger.error(f"Failed to save matches: {e}")
+
+def get_recent_matches(limit: int = 50) -> List[Dict[str, Any]]:
+    """Retrieve the most recent matches."""
+    try:
+        conn = get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM matches 
+            ORDER BY created_at DESC 
+            LIMIT ?
+        """, (limit,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        matches = []
+        for row in rows:
+            match = dict(row)
+            # Parse JSON fields
+            try:
+                match["matching_points"] = json.loads(match["matching_points"]) if match["matching_points"] else []
+                match["gaps"] = json.loads(match["gaps"]) if match["gaps"] else []
+                match["overall_score"] = match["score"] # Map back to expected key
+            except Exception:
+                pass
+            matches.append(match)
+            
+        return matches
+    except Exception as e:
+        logger.error(f"Failed to retrieve matches: {e}")
+        return []
 
 def log_application(project: Dict[str, Any], match_data: Dict[str, Any], email_data: Dict[str, Any], status: str = "pending"):
     """Log a new application or update existing."""
