@@ -52,6 +52,49 @@ def extract_projects_from_text(text: str) -> List[Dict[str, Any]]:
             logger.warning(f"Failed to extract projects from chunk {i+1}")
             
     projects = all_projects
+    
+    # --- Global Context Scan (Full Text) ---
+    # Scan the entire text for global application methods (Email/Link)
+    
+    # 1. Clean Text for OCR errors
+    cleaned_text = clean_ocr_text(text)
+    
+    # 2. Find Global Email
+    email_pattern = re.compile(r'(?:Email|Contact|mail)\s*[:\-]?\s*([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,})', re.IGNORECASE)
+    global_email_match = email_pattern.search(cleaned_text)
+    global_email = global_email_match.group(1) if global_email_match else None
+    
+    # 3. Find Global Link
+    global_link = None
+    # Simple heuristic: Find URLs near "postuler"
+    for match in re.finditer(r'(postuler|apply|candidature).{0,100}?(https?://[^\s<>"]+|www\.[^\s<>"]+)', cleaned_text, re.IGNORECASE | re.DOTALL):
+        potential_link = match.group(2)
+        potential_link = clean_ocr_url(potential_link)
+        if "mobelite" in potential_link or "forms" in potential_link or "bit.ly" in potential_link:
+            global_link = potential_link
+            break
+    
+    if not global_link:
+        mobelite_match = re.search(r'https?://sta[gq]es\.mobelite\.fr', cleaned_text, re.IGNORECASE)
+        if mobelite_match:
+            global_link = "https://stages.mobelite.fr"
+
+    if global_email:
+        logger.info(f"Found Global Email: {global_email}")
+    if global_link:
+        logger.info(f"Found Global Link: {global_link}")
+
+    # Inject Global Context into Projects if missing
+    for p in projects:
+        if not p.get("application_link") and global_link:
+            p["application_link"] = global_link
+            p["application_method"] = "link"
+            p["_note"] = "Inferred from global text scan"
+            
+        if not p.get("email") and global_email:
+            p["email"] = global_email
+            if not p.get("application_method"):
+                p["application_method"] = "email"
         
     if projects:
         save_cached_projects(text_hash, projects)
@@ -229,7 +272,6 @@ def normalize_projects(projects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 portal_link = link
                 break
     
-    
     if portal_link:
         logger.info(f"Found global portal link: {portal_link}. Applying to missing projects.")
         for p in cleaned_projects:
@@ -237,7 +279,34 @@ def normalize_projects(projects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 p["application_link"] = portal_link
                 p["application_method"] = "link"
                 p["_note"] = "Inferred from global context"
-                
 
     logger.info(f"Normalized {len(projects)} projects to {len(cleaned_projects)} unique projects.")
     return cleaned_projects
+
+def clean_ocr_text(text: str) -> str:
+    """
+    Clean common OCR errors in text, especially for emails.
+    """
+    if not text:
+        return ""
+    
+    # Fix email artifacts
+    text = text.replace("(ö", "@").replace("(at)", "@").replace("[at]", "@").replace(" at ", "@")
+    text = text.replace(" .com", ".com").replace(" .fr", ".fr").replace(" .tn", ".tn")
+    
+    return text
+
+def clean_ocr_url(url: str) -> str:
+    """
+    Clean common OCR errors in URLs.
+    """
+    if not url:
+        return ""
+        
+    # Fix "staqes" -> "stages"
+    url = url.replace("staqes", "stages")
+    
+    # Fix "htt ps" -> "https"
+    url = url.replace("htt ps", "https").replace("http s", "https")
+    
+    return url
