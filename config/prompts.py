@@ -32,6 +32,11 @@ Each project object must have:
 
 TEXT:
 {text}
+
+IMPORTANT: 
+- If the document contains a "How to Apply" or "Comment postuler" section (usually at the beginning or end) that applies to ALL projects, use that information for the "application_method" and "application_link" fields for every project that doesn't have a specific one.
+- Look for global instructions like "Pour postuler connectez-vous à..." or "Send CV to...".
+- If a link is found in a global section, include it for all projects.
 """
 
 # Matching Prompt
