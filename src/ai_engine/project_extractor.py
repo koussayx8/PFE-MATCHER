@@ -7,8 +7,9 @@ from pathlib import Path
 
 from src.ai_engine.gemini_client import GeminiClient
 from config.prompts import PROJECT_EXTRACTION_PROMPT
-from config.settings import CACHE_DIR
+from config.prompts import PROJECT_EXTRACTION_PROMPT
 from src.utils.logging_config import setup_logging
+from src.data_management.database import get_cached_projects, save_cached_projects
 
 logger = setup_logging(__name__)
 
@@ -27,15 +28,11 @@ def extract_projects_from_text(text: str) -> List[Dict[str, Any]]:
 
     # Check cache (hash of the first 1000 chars + length to avoid huge hash calc on full text if unnecessary)
     text_hash = hashlib.md5((text[:1000] + str(len(text))).encode('utf-8')).hexdigest()
-    cache_file = CACHE_DIR / f"projects_{text_hash}.json"
     
-    if cache_file.exists():
-        try:
-            with open(cache_file, 'r', encoding='utf-8') as f:
-                logger.info(f"Loaded projects from cache: {text_hash}")
-                return json.load(f)
-        except Exception as e:
-            logger.warning(f"Failed to load cache: {e}")
+    cached_projects = get_cached_projects(text_hash)
+    if cached_projects:
+        logger.info(f"Loaded projects from DB cache: {text_hash}")
+        return cached_projects
 
     client = GeminiClient()
     
@@ -65,11 +62,7 @@ def extract_projects_from_text(text: str) -> List[Dict[str, Any]]:
         
     # Save to cache
     if projects:
-        try:
-            with open(cache_file, 'w', encoding='utf-8') as f:
-                json.dump(projects, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.warning(f"Failed to save cache: {e}")
+        save_cached_projects(text_hash, projects)
 
     return projects
 

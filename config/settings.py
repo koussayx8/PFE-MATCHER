@@ -13,6 +13,11 @@ CACHE_DIR = DATA_DIR / "cache"
 EXPORTS_DIR = DATA_DIR / "exports"
 LOGS_DIR = BASE_DIR / "logs"
 DATABASE_PATH = BASE_DIR / "database" / "applications.db"
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL or "postgres" in DATABASE_URL and "password" not in DATABASE_URL: # Basic check for bad config
+    DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
+
+
 
 # Create directories if they don't exist
 for dir_path in [UPLOADS_DIR, CACHE_DIR, EXPORTS_DIR, LOGS_DIR, DATABASE_PATH.parent]:
@@ -40,3 +45,10 @@ EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 
 # Cache Settings
 CACHE_TTL_HOURS = 24
+
+# Hybrid Matching Settings
+EMBEDDING_TOP_K = int(os.getenv("EMBEDDING_TOP_K", 20))
+MIN_SIMILARITY_THRESHOLD = float(os.getenv("MIN_SIMILARITY_THRESHOLD", 0.30))
+EMBEDDING_BATCH_SIZE = int(os.getenv("EMBEDDING_BATCH_SIZE", 100))
+MATCH_CACHE_TTL_DAYS = int(os.getenv("MATCH_CACHE_TTL_DAYS", 30))
+USE_HYBRID_MATCHING = os.getenv("USE_HYBRID_MATCHING", "true").lower() == "true"

@@ -26,7 +26,9 @@ Each project object must have:
 - "domain": str (e.g., "Web Development", "Data Science", "Embedded Systems")
 - "supervisor": str (Supervisor name if available, else "")
 - "email": str (Contact email if available, else "")
-- "reference_id": str (Any ID mentioned, else "")
+- "reference_id": str (Any ID, Code, or Ref mentioned, else "")
+- "application_method": "email" | "link" | "other" (How to apply)
+- "application_link": str (The URL to apply if available, else "")
 
 TEXT:
 {text}

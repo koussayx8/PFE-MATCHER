@@ -2,11 +2,52 @@ import requests
 import json
 import time
 import hashlib
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from config.settings import PERPLEXITY_API_KEY, CACHE_DIR
 from src.utils.logging_config import setup_logging
 
 logger = setup_logging(__name__)
+
+def chat_completion(messages: List[Dict[str, str]], model: str = "sonar") -> Optional[str]:
+    """
+    Generic function to call Perplexity API for chat completions.
+    
+    Args:
+        messages (List[Dict[str, str]]): List of message dicts with 'role' and 'content'.
+        model (str): Model to use.
+        
+    Returns:
+        Optional[str]: The content of the response, or None if failed.
+    """
+    if not PERPLEXITY_API_KEY:
+        logger.warning("PERPLEXITY_API_KEY missing. Cannot perform chat completion.")
+        return None
+        
+    url = "https://api.perplexity.ai/chat/completions"
+    
+    payload = {
+        "model": model,
+        "messages": messages
+    }
+    
+    headers = {
+        "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        
+        if not response.ok:
+            logger.error(f"Perplexity API Error: {response.status_code} - {response.text}")
+            
+        response.raise_for_status()
+        
+        return response.json()['choices'][0]['message']['content']
+        
+    except Exception as e:
+        logger.error(f"Perplexity API failed: {e}")
+        return None
 
 def research_company(company_name: str) -> Dict[str, Any]:
     """
@@ -21,12 +62,7 @@ def research_company(company_name: str) -> Dict[str, Any]:
     if not company_name:
         return {}
         
-    if not PERPLEXITY_API_KEY:
-        logger.warning("PERPLEXITY_API_KEY missing. Skipping company research.")
-        return {}
-
     # Check cache (24h TTL handled by caller or simple file check)
-    # Here we just check if file exists for now.
     safe_name = "".join(c for c in company_name if c.isalnum())
     cache_file = CACHE_DIR / f"company_{safe_name}.json"
     
@@ -39,33 +75,23 @@ def research_company(company_name: str) -> Dict[str, Any]:
             except Exception:
                 pass
 
-    url = "https://api.perplexity.ai/chat/completions"
+    messages = [
+        {
+            "role": "system",
+            "content": "You are a helpful research assistant. Return a JSON object with keys: description, recent_news, values."
+        },
+        {
+            "role": "user",
+            "content": f"Research the company '{company_name}'. Provide a brief description, their core values, and any recent news or projects relevant to engineering/tech."
+        }
+    ]
     
-    payload = {
-        "model": "llama-3-sonar-small-32k-online",
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are a helpful research assistant. Return a JSON object with keys: description, recent_news, values."
-            },
-            {
-                "role": "user",
-                "content": f"Research the company '{company_name}'. Provide a brief description, their core values, and any recent news or projects relevant to engineering/tech."
-            }
-        ]
-    }
+    content = chat_completion(messages)
     
-    headers = {
-        "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
+    if not content:
+        return {}
+        
     try:
-        response = requests.post(url, json=payload, headers=headers)
-        response.raise_for_status()
-        
-        content = response.json()['choices'][0]['message']['content']
-        
         # Parse JSON from content (Perplexity might return markdown)
         # Simple cleanup
         if "```json" in content:
@@ -85,5 +111,5 @@ def research_company(company_name: str) -> Dict[str, Any]:
         return data
         
     except Exception as e:
-        logger.error(f"Perplexity API failed: {e}")
+        logger.error(f"Failed to parse Perplexity response: {e}")
         return {}
