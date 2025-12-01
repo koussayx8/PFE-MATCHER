@@ -30,13 +30,15 @@ def parse_excel_to_projects(file_path: str) -> List[Dict[str, Any]]:
         df.columns = [str(col).lower().strip() for col in df.columns]
         
         # Define column mappings
+        # Define column mappings
         column_mappings = {
-            "title": ["titre", "title", "projet", "sujet", "project title"],
-            "description": ["description", "details", "résumé", "summary", "context"],
-            "company": ["entreprise", "company", "société", "organization", "organisme"],
+            "title": ["titre", "title", "projet", "sujet", "project title", "stage", "topic"],
+            "description": ["description", "details", "résumé", "summary", "context", "mission"],
+            "company": ["entreprise", "company", "société", "organization", "organisme", "client"],
             "email": ["email", "contact", "mail", "address", "coordonnées"],
-            "technologies": ["technologies", "tech stack", "outils", "tools", "mots clés", "keywords"],
-            "location": ["lieu", "location", "ville", "city", "pays"]
+            "technologies": ["technologies", "tech stack", "outils", "tools", "mots clés", "keywords", "environnement", "environment"],
+            "location": ["lieu", "location", "ville", "city", "pays"],
+            "application_link": ["lien", "link", "url", "site", "website", "postuler", "apply"]
         }
         
         # Map columns
