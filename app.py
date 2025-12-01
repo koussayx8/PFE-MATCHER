@@ -322,6 +322,9 @@ def display_matches(matches, key_prefix, tone, language, selected_companies, fil
                     if app_link:
                         st.link_button("🔗 Apply via Link", app_link, use_container_width=True)
                         st.write("---")
+                    elif contact_email == "N/A":
+                        st.warning("⚠️ No application method found (Email or Link). Please check the PFE Book manually.")
+                        st.write("---")
                     
                     # Email Application
                     gen_key = f"gen_{key_prefix}_{project_id}"
