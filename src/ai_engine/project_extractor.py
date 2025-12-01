@@ -66,6 +66,8 @@ def extract_projects_from_text(text: str) -> List[Dict[str, Any]]:
 
     return projects
 
+import re
+
 def normalize_projects(projects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Normalize, deduplicate, and validate projects.
@@ -79,6 +81,9 @@ def normalize_projects(projects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     cleaned_projects = []
     seen_titles = []
     
+    # Regex for finding URLs (case insensitive)
+    url_pattern = re.compile(r'(https?://[^\s<>"]+|www\.[^\s<>"]+|bit\.ly/[^\s<>"]+|forms\.gle/[^\s<>"]+)', re.IGNORECASE)
+    
     for p in projects:
         # Basic validation
         if not p.get("title") or not p.get("description"):
@@ -87,6 +92,22 @@ def normalize_projects(projects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # Clean fields
         p["title"] = p["title"].strip()
         p["description"] = p["description"].strip()
+        
+        # Regex Fallback for Link
+        if not p.get("application_link"):
+            # Search in description
+            match = url_pattern.search(p["description"])
+            if match:
+                p["application_link"] = match.group(0)
+                p["application_method"] = "link"
+                logger.info(f"Regex found link for {p['title']}: {p['application_link']}")
+        
+        if p.get("application_link"):
+            p["application_link"] = p["application_link"].strip()
+            
+        if p.get("reference_id"):
+            p["reference_id"] = p["reference_id"].strip()
+            
         p["id"] = str(uuid.uuid4())
         
         # Deduplication

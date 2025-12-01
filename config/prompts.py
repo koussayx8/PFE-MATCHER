@@ -28,7 +28,7 @@ Each project object must have:
 - "email": str (Contact email if available, else "")
 - "reference_id": str (Any ID, Code, or Ref mentioned, else "")
 - "application_method": "email" | "link" | "other" (How to apply)
-- "application_link": str (The URL to apply if available, else "")
+- "application_link": str (The URL to apply if available. Look for 'http', 'www', 'apply here', 'candidature'. Extract the full URL.)
 
 TEXT:
 {text}

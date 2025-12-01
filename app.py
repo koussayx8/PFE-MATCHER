@@ -44,8 +44,10 @@ st.markdown("""
     .match-card {
         padding: 15px;
         border-radius: 10px;
-        border: 1px solid #ddd;
+        background-color: #262730; /* Streamlit dark bg */
+        color: white;
         margin-bottom: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
     .high-match { border-left: 5px solid #28a745; }
     .med-match { border-left: 5px solid #ffc107; }
@@ -278,23 +280,32 @@ def display_matches(matches, key_prefix, tone, language, selected_companies, fil
         reference_id = project.get("reference_id") or match.get("reference_id") or ""
         app_link = project.get("application_link") or match.get("application_link")
         
-        ref_display = f'<span style="font-size:0.8em; color:#555; background-color: #eee; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">{reference_id}</span>' if reference_id else ""
-        
+        # Badge for Reference ID
+        ref_badge = ""
+        if reference_id:
+            ref_badge = f'<span style="background-color:#f0f2f6;color:#31333F;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;white-space:nowrap;margin-bottom:4px;display:inline-block;">{reference_id}</span>'
+
+        # HTML Card Construction (Minified to prevent Markdown errors)
+        card_html = f"""
+<div class="match-card {color_class}" style="padding:15px;border-radius:8px;margin-bottom:10px;">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;">
+<div style="flex:1;padding-right:10px;">
+<h3 style="margin:0;font-size:1.1em;line-height:1.4;">{match.get('project_title')}</h3>
+<p style="margin:5px 0 0 0;"><strong>🏢 {match.get('company')}</strong></p>
+</div>
+<div style="text-align:right;min-width:80px;display:flex;flex-direction:column;align-items:flex-end;">
+{ref_badge}
+<h2 style="margin:0;font-size:1.8em;">{score}%</h2>
+</div>
+</div>
+<div style="margin-top:10px;font-size:0.9em;border-top:1px solid #444;padding-top:8px;">
+<p style="margin:2px 0;"><strong>📧 Email:</strong> {contact_email}</p>
+<p style="margin:2px 0;"><strong>💡 Recommendation:</strong> {match.get('recommendation')}</p>
+</div>
+</div>
+"""
         with st.container():
-            st.markdown(f"""
-            <div class="match-card {color_class}">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center;">
-                        <h3 style="margin: 0;">{match.get('project_title')}</h3>
-                        {ref_display}
-                    </div>
-                    <h2 style="margin: 0;">{score}%</h2>
-                </div>
-                <p><strong>🏢 Company:</strong> {match.get('company')}</p>
-                <p><strong>📧 Email:</strong> {contact_email}</p>
-                <p><strong>💡 Recommendation:</strong> {match.get('recommendation')}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(card_html, unsafe_allow_html=True)
             
             with st.expander("View Details & Apply"):
                 c1, c2 = st.columns(2)
@@ -355,15 +366,57 @@ def display_matches(matches, key_prefix, tone, language, selected_companies, fil
                                 })
                                 st.success("Added to queue!")
 
-    # Pagination Controls
+    # Modern Pagination Controls
     if total_pages > 1:
-        c1, c2, c3 = st.columns([1, 2, 1])
-        with c1:
-            if st.button("Previous", key=f"prev_{key_prefix}", disabled=st.session_state[page_key] == 1):
+        st.markdown("---")
+        
+        # Calculate range of pages to show
+        current_page = st.session_state[page_key]
+        
+        # Logic to determine which page numbers to show
+        # Always show first, last, current, and neighbors
+        pages_to_show = set()
+        pages_to_show.add(1)
+        pages_to_show.add(total_pages)
+        pages_to_show.add(current_page)
+        pages_to_show.add(current_page - 1)
+        pages_to_show.add(current_page + 1)
+        
+        sorted_pages = sorted([p for p in pages_to_show if 1 <= p <= total_pages])
+        
+        # Add gaps
+        final_pages = []
+        if sorted_pages:
+            final_pages.append(sorted_pages[0])
+            for i in range(1, len(sorted_pages)):
+                if sorted_pages[i] > sorted_pages[i-1] + 1:
+                    final_pages.append(None) # Ellipsis
+                final_pages.append(sorted_pages[i])
+        
+        # Render buttons
+        cols = st.columns(len(final_pages) + 2) # +2 for Prev/Next
+        
+        # Prev Button
+        with cols[0]:
+            if st.button("◀", key=f"prev_{key_prefix}", disabled=current_page == 1, help="Previous Page"):
                 st.session_state[page_key] -= 1
                 st.rerun()
-        with c3:
-            if st.button("Next", key=f"next_{key_prefix}", disabled=st.session_state[page_key] == total_pages):
+                
+        # Page Numbers
+        for i, p in enumerate(final_pages):
+            with cols[i+1]:
+                if p is None:
+                    st.write("...")
+                else:
+                    # Highlight current page
+                    label = f"**{p}**" if p == current_page else f"{p}"
+                    if st.button(str(p), key=f"page_{key_prefix}_{p}", disabled=p == current_page):
+                        st.session_state[page_key] = p
+                        st.rerun()
+                        
+        # Next Button
+        with cols[-1]:
+            if st.button("▶", key=f"next_{key_prefix}", disabled=current_page == total_pages, help="Next Page"):
                 st.session_state[page_key] += 1
                 st.rerun()
 

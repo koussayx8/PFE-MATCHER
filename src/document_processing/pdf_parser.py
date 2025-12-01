@@ -40,6 +40,19 @@ def extract_text_from_pdf(file_path: str) -> Dict[str, Any]:
                 page_text = page.extract_text()
                 if page_text:
                     text += page_text + "\n"
+                
+                # Extract Hyperlinks (Annotations)
+                if page.annots:
+                    links = []
+                    for annot in page.annots:
+                        uri = annot.get("uri")
+                        if uri:
+                            links.append(uri)
+                    
+                    if links:
+                        # Append links to the text so the LLM can see them
+                        unique_links = list(set(links))
+                        text += "\n[Extracted Links on Page]:\n" + "\n".join(unique_links) + "\n"
             
             if len(text.strip()) > 50:  # heuristic: if we got meaningful text
                 return {
